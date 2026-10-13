@@ -1,0 +1,15 @@
+# Build products and local state
+.DS_Store
+__pycache__/
+*.pyc
+WaterApp/dist/
+DerivedData/
+.build/
+*.xcuserstate
+xcuserdata/
+.env*
+*.p12
+*.key
+# Water data and per-account upload ledgers should never be committed.
+google-health-*.json
+????-??-??.json

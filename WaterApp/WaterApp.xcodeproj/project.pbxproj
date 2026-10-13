@@ -1,0 +1,91 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* WaterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* WaterApp.swift */; };
+		A10000000000000000000002 /* WaterRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* WaterRepository.swift */; };
+		A10000000000000000000003 /* WaterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* WaterStore.swift */; };
+		A10000000000000000000004 /* BottleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* BottleView.swift */; };
+		A10000000000000000000005 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* ContentView.swift */; };
+		A10000000000000000000006 /* WaterRepository.swift in Tests */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* WaterRepository.swift */; };
+		A10000000000000000000007 /* WaterRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* WaterRepositoryTests.swift */; };
+		A10000000000000000000008 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* XCTest.framework */; };
+		A10000000000000000000009 /* HourlyReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* HourlyReminder.swift */; };
+		A1000000000000000000000A /* FullScreenReminderOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* FullScreenReminderOverlay.swift */; };
+		A1000000000000000000000B /* GoogleHealthAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* GoogleHealthAuth.swift */; };
+		A1000000000000000000000C /* GoogleHealthSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* GoogleHealthSync.swift */; };
+		A1000000000000000000000D /* GoogleHealthAuth.swift in Tests */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* GoogleHealthAuth.swift */; };
+		A1000000000000000000000E /* GoogleHealthSync.swift in Tests */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* GoogleHealthSync.swift */; };
+		A1000000000000000000000F /* GoogleHealthSyncTests.swift in Tests */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* GoogleHealthSyncTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A20000000000000000000001 /* WaterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterApp.swift; sourceTree = "<group>"; };
+		A20000000000000000000002 /* WaterRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterRepository.swift; sourceTree = "<group>"; };
+		A20000000000000000000003 /* WaterStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterStore.swift; sourceTree = "<group>"; };
+		A20000000000000000000004 /* BottleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleView.swift; sourceTree = "<group>"; };
+		A20000000000000000000005 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A20000000000000000000006 /* WaterRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaterRepositoryTests.swift; sourceTree = "<group>"; };
+		A20000000000000000000007 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
+		A20000000000000000000008 /* Water.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Water.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000009 /* WaterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WaterTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000010 /* HourlyReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HourlyReminder.swift; sourceTree = "<group>"; };
+		A2000000000000000000000A /* FullScreenReminderOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullScreenReminderOverlay.swift; sourceTree = "<group>"; };
+		A2000000000000000000000B /* GoogleHealthAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleHealthAuth.swift; sourceTree = "<group>"; };
+		A2000000000000000000000C /* GoogleHealthSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleHealthSync.swift; sourceTree = "<group>"; };
+		A2000000000000000000000D /* GoogleHealthSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleHealthSyncTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A30000000000000000000001 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A30000000000000000000002 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000008 /* XCTest.framework in Frameworks */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A40000000000000000000001 = {isa = PBXGroup; children = (A40000000000000000000002 /* Sources */, A40000000000000000000003 /* Tests */, A40000000000000000000004 /* Frameworks */, A40000000000000000000005 /* Products */,); sourceTree = "<group>"; };
+		A40000000000000000000002 /* Sources */ = {isa = PBXGroup; children = (A20000000000000000000001 /* WaterApp.swift */, A20000000000000000000002 /* WaterRepository.swift */, A20000000000000000000003 /* WaterStore.swift */, A20000000000000000000004 /* BottleView.swift */, A20000000000000000000005 /* ContentView.swift */, A20000000000000000000010 /* HourlyReminder.swift */, A2000000000000000000000A /* FullScreenReminderOverlay.swift */, A2000000000000000000000B /* GoogleHealthAuth.swift */, A2000000000000000000000C /* GoogleHealthSync.swift */,); path = Sources; sourceTree = "<group>"; };
+		A40000000000000000000003 /* Tests */ = {isa = PBXGroup; children = (A20000000000000000000006 /* WaterRepositoryTests.swift */, A2000000000000000000000D /* GoogleHealthSyncTests.swift */,); path = Tests; sourceTree = "<group>"; };
+		A40000000000000000000004 /* Frameworks */ = {isa = PBXGroup; children = (A20000000000000000000007 /* XCTest.framework */,); name = Frameworks; sourceTree = "<group>"; };
+		A40000000000000000000005 /* Products */ = {isa = PBXGroup; children = (A20000000000000000000008 /* Water.app */, A20000000000000000000009 /* WaterTests.xctest */,); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A50000000000000000000001 /* Water */ = {isa = PBXNativeTarget; buildConfigurationList = A70000000000000000000002 /* Build configuration list for PBXNativeTarget "Water" */; buildPhases = (A30000000000000000000003 /* Sources */, A30000000000000000000001 /* Frameworks */, A30000000000000000000005 /* Resources */,); buildRules = (); dependencies = (); name = Water; productName = Water; productReference = A20000000000000000000008 /* Water.app */; productType = "com.apple.product-type.application"; };
+		A50000000000000000000002 /* WaterTests */ = {isa = PBXNativeTarget; buildConfigurationList = A70000000000000000000003 /* Build configuration list for PBXNativeTarget "WaterTests" */; buildPhases = (A30000000000000000000004 /* Sources */, A30000000000000000000002 /* Frameworks */, A30000000000000000000006 /* Resources */,); buildRules = (); dependencies = (); name = WaterTests; productName = WaterTests; productReference = A20000000000000000000009 /* WaterTests.xctest */; productType = "com.apple.product-type.bundle.unit-test"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A60000000000000000000001 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 2660; TargetAttributes = {A50000000000000000000001 = {CreatedOnToolsVersion = 26.0; }; A50000000000000000000002 = {CreatedOnToolsVersion = 26.0; }; }; }; buildConfigurationList = A70000000000000000000001 /* Build configuration list for PBXProject "WaterApp" */; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base,); mainGroup = A40000000000000000000001; productRefGroup = A40000000000000000000005 /* Products */; projectDirPath = ""; projectRoot = ""; targets = (A50000000000000000000001 /* Water */, A50000000000000000000002 /* WaterTests */,); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A30000000000000000000005 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A30000000000000000000006 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A30000000000000000000003 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* WaterApp.swift in Sources */, A10000000000000000000002 /* WaterRepository.swift in Sources */, A10000000000000000000003 /* WaterStore.swift in Sources */, A10000000000000000000004 /* BottleView.swift in Sources */, A10000000000000000000005 /* ContentView.swift in Sources */, A10000000000000000000009 /* HourlyReminder.swift in Sources */, A1000000000000000000000A /* FullScreenReminderOverlay.swift in Sources */, A1000000000000000000000B /* GoogleHealthAuth.swift in Sources */, A1000000000000000000000C /* GoogleHealthSync.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+		A30000000000000000000004 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000006 /* WaterRepository.swift in Tests */, A10000000000000000000007 /* WaterRepositoryTests.swift in Sources */, A1000000000000000000000D /* GoogleHealthAuth.swift in Tests */, A1000000000000000000000E /* GoogleHealthSync.swift in Tests */, A1000000000000000000000F /* GoogleHealthSyncTests.swift in Tests */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A80000000000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; }; name = Debug; };
+		A80000000000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; }; name = Release; };
+		A80000000000000000000003 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGNING_ALLOWED = NO; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Sources/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = Water; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness"; INFOPLIST_KEY_LSUIElement = YES; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.samtools.water; PRODUCT_NAME = Water; SWIFT_VERSION = 5.0; }; name = Debug; };
+		A80000000000000000000004 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGNING_ALLOWED = NO; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Sources/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = Water; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness"; INFOPLIST_KEY_LSUIElement = YES; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.samtools.water; PRODUCT_NAME = Water; SWIFT_VERSION = 5.0; }; name = Release; };
+		A80000000000000000000005 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGNING_ALLOWED = NO; GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = com.samtools.water.tests; PRODUCT_NAME = WaterTests; SWIFT_VERSION = 5.0; }; name = Debug; };
+		A80000000000000000000006 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGNING_ALLOWED = NO; GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = com.samtools.water.tests; PRODUCT_NAME = WaterTests; SWIFT_VERSION = 5.0; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A70000000000000000000001 /* Build configuration list for PBXProject "WaterApp" */ = {isa = XCConfigurationList; buildConfigurations = (A80000000000000000000001 /* Debug */, A80000000000000000000002 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug; };
+		A70000000000000000000002 /* Build configuration list for PBXNativeTarget "Water" */ = {isa = XCConfigurationList; buildConfigurations = (A80000000000000000000003 /* Debug */, A80000000000000000000004 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug; };
+		A70000000000000000000003 /* Build configuration list for PBXNativeTarget "WaterTests" */ = {isa = XCConfigurationList; buildConfigurations = (A80000000000000000000005 /* Debug */, A80000000000000000000006 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug; };
+/* End XCConfigurationList section */
+	};
+	rootObject = A60000000000000000000001 /* Project object */;
+}
