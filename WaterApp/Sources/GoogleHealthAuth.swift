@@ -1,7 +1,7 @@
 import AppKit
 import CryptoKit
+import Darwin
 import Foundation
-import Network
 import Security
 
 /// OAuth desktop-client flow: system browser + one-shot loopback callback + PKCE.
@@ -49,7 +49,7 @@ final class GoogleHealthAuth {
         let state = UUID().uuidString
         let verifier = (UUID().uuidString + UUID().uuidString).replacingOccurrences(of: "-", with: "")
         let challenge = Data(SHA256.hash(data: Data(verifier.utf8))).base64URLEncoded()
-        let server = try await LoopbackCallback()
+        let server = try LoopbackCallback()
         defer { server.cancel() }
         let redirect = "http://127.0.0.1:\(server.port)/callback"
         var parts = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")!
@@ -157,82 +157,110 @@ private extension Data {
     }
 }
 
-/// Binds only localhost; rejects all paths other than /callback and serves one response.
+/// A one-shot loopback server. Network.framework listeners fail with EINVAL on some Macs;
+/// POSIX sockets also let us guarantee the callback is bound only to 127.0.0.1.
 @MainActor
-private final class LoopbackCallback {
+final class LoopbackCallback {
     let port: UInt16
-    private let listener: NWListener
+    private let fd: Int32
+    private let socketState = SocketState()
     private var continuation: CheckedContinuation<[String: String], Error>?
     private var pending: Result<[String: String], Error>?
     private var completed = false
 
-    init() async throws {
-        let parameters = NWParameters.tcp
-        parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
-        let listener = try NWListener(using: parameters, on: .any)
-        self.listener = listener
-        var started = false
-        self.port = try await withCheckedThrowingContinuation { continuation in
-            listener.stateUpdateHandler = { state in
-                Task { @MainActor in
-                    guard !started else { return }
-                    switch state {
-                    case .ready:
-                        started = true
-                        if let port = listener.port { continuation.resume(returning: port.rawValue) }
-                        else { continuation.resume(throwing: GoogleHealthAuth.AuthError.invalidResponse) }
-                    case .failed(let error):
-                        started = true
-                        continuation.resume(throwing: error)
-                    default: break
-                    }
-                }
+    init() throws {
+        let fd = Darwin.socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_addr.s_addr = inet_addr("127.0.0.1")
+        address.sin_port = in_port_t(0).bigEndian
+        let bound = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
-            listener.start(queue: .main)
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 180) { [weak self] in
-            guard let self, self.continuation != nil else { return }
-            self.cancel()
+        guard bound == 0, Darwin.listen(fd, 4) == 0 else {
+            let error = POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            Darwin.close(fd)
+            throw error
         }
-        listener.newConnectionHandler = { [weak self] connection in
-            connection.start(queue: .main)
-            Task { @MainActor [weak self] in self?.receive(connection, bytes: Data()) }
+        var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let named = withUnsafeMutablePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.getsockname(fd, $0, &length)
+            }
         }
-    }
-
-    private func receive(_ connection: NWConnection, bytes: Data) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 8192 - bytes.count) { [weak self] data, _, complete, error in
-            Task { @MainActor [weak self] in
-                guard let self else { connection.cancel(); return }
-                var buffer = bytes
-                if let data { buffer.append(data) }
-                guard error == nil, buffer.count < 8192 else { connection.cancel(); return }
-                guard buffer.range(of: Data("\r\n".utf8)) != nil else {
-                    if complete { connection.cancel() } else { self.receive(connection, bytes: buffer) }
+        guard named == 0 else {
+            let error = POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            Darwin.close(fd)
+            throw error
+        }
+        self.fd = fd
+        self.port = in_port_t(bigEndian: address.sin_port)
+        let state = socketState
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let deadline = Date().addingTimeInterval(180)
+            while !state.isClosed && Date() < deadline {
+                var pendingSocket = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+                let ready = Darwin.poll(&pendingSocket, 1, 500)
+                if ready < 0 && errno == EINTR { continue }
+                if ready < 0 || (ready > 0 && pendingSocket.revents & Int16(POLLIN) == 0) { break }
+                guard ready > 0 else { continue }
+                let client = Darwin.accept(fd, nil, nil)
+                guard client >= 0 else { continue }
+                let params = Self.readCallback(from: client)
+                Darwin.close(client)
+                if let params {
+                    Task { @MainActor [weak self] in self?.finish(.success(params)) }
                     return
                 }
-                self.handle(connection, bytes: buffer)
+            }
+            Task { @MainActor [weak self] in
+                self?.finish(.failure(GoogleHealthAuth.AuthError.callback("Sign-in timed out.")))
             }
         }
     }
 
-    private func handle(_ connection: NWConnection, bytes: Data) {
+    private nonisolated static func readCallback(from client: Int32) -> [String: String]? {
+        var noSIGPIPE: Int32 = 1
+        _ = withUnsafePointer(to: &noSIGPIPE) {
+            Darwin.setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, $0, socklen_t(MemoryLayout<Int32>.size))
+        }
+        var timeout = timeval(tv_sec: 3, tv_usec: 0)
+        _ = withUnsafePointer(to: &timeout) {
+            Darwin.setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, $0, socklen_t(MemoryLayout<timeval>.size))
+        }
+        var bytes = Data()
+        while bytes.count < 8192 && bytes.range(of: Data("\r\n".utf8)) == nil {
+            var chunk = [UInt8](repeating: 0, count: min(4096, 8192 - bytes.count))
+            let count = chunk.withUnsafeMutableBytes { Darwin.recv(client, $0.baseAddress, $0.count, 0) }
+            guard count > 0 else { return nil }
+            bytes.append(contentsOf: chunk.prefix(count))
+        }
         let line = String(data: bytes, encoding: .utf8)?.components(separatedBy: "\r\n").first ?? ""
         let path = line.split(separator: " ").dropFirst().first.map(String.init) ?? ""
         let url = URLComponents(string: "http://127.0.0.1\(path)")
         let valid = line.hasPrefix("GET /callback?") && url?.path == "/callback"
         let body = valid ? "Sign-in received. You can return to Water." : "Invalid callback."
         let response = "HTTP/1.1 \(valid ? "200 OK" : "404 Not Found")\r\nContent-Type: text/plain\r\nContent-Length: \(body.utf8.count)\r\nConnection: close\r\n\r\n\(body)"
-        connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in connection.cancel() })
-        guard valid, !completed else { return }
-        completed = true
-        let params = Dictionary((url?.queryItems ?? []).compactMap { item in
+        let data = Data(response.utf8)
+        data.withUnsafeBytes { _ = Darwin.send(client, $0.baseAddress, $0.count, 0) }
+        guard valid else { return nil }
+        return Dictionary((url?.queryItems ?? []).compactMap { item in
             item.value.map { (item.name, $0) }
         }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private func finish(_ result: Result<[String: String], Error>) {
+        guard !completed else { return }
+        completed = true
+        socketState.close(fd)
         if let continuation {
             self.continuation = nil
-            continuation.resume(returning: params)
-        } else { pending = .success(params) }
+            continuation.resume(with: result)
+        } else { pending = result }
     }
 
     func waitForCallback() async throws -> [String: String] {
@@ -241,8 +269,27 @@ private final class LoopbackCallback {
     }
 
     func cancel() {
-        listener.cancel()
-        continuation?.resume(throwing: GoogleHealthAuth.AuthError.callback("Sign-in cancelled."))
-        continuation = nil
+        guard !completed else { return }
+        finish(.failure(GoogleHealthAuth.AuthError.callback("Sign-in cancelled.")))
+    }
+}
+
+private final class SocketState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var closed = false
+
+    var isClosed: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return closed
+    }
+
+    func close(_ fd: Int32) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !closed else { return }
+        closed = true
+        Darwin.shutdown(fd, SHUT_RDWR)
+        Darwin.close(fd)
     }
 }

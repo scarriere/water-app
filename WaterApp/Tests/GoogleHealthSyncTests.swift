@@ -3,6 +3,22 @@ import XCTest
 
 @MainActor
 final class GoogleHealthSyncTests: XCTestCase {
+    func testOAuthLoopbackAcceptsOneCallbackAndRejectsOtherPaths() async throws {
+        let server = try LoopbackCallback()
+        defer { server.cancel() }
+        let invalid = URL(string: "http://127.0.0.1:\(server.port)/not-a-callback")!
+        let (_, rejected) = try await URLSession.shared.data(from: invalid)
+        XCTAssertEqual((rejected as? HTTPURLResponse)?.statusCode, 404)
+
+        let waiting = Task { try await server.waitForCallback() }
+        let callback = URL(string: "http://127.0.0.1:\(server.port)/callback?state=unit-state&code=unit-code")!
+        let (_, accepted) = try await URLSession.shared.data(from: callback)
+        XCTAssertEqual((accepted as? HTTPURLResponse)?.statusCode, 200)
+        let params = try await waiting.value
+        XCTAssertEqual(params["state"], "unit-state")
+        XCTAssertEqual(params["code"], "unit-code")
+    }
+
     func testHydrationPayloadUsesActualVolumeAndOneSecondUTCInterval() throws {
         let entry = GoogleHealthSync.Entry(at: "2026-10-01T12:00:00Z", ml: 355)
         let payload = try GoogleHealthSync.hydrationPayload(for: entry)
