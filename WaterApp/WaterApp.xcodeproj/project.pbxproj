@@ -23,6 +23,7 @@
 		A1000000000000000000000F /* GoogleHealthSyncTests.swift in Tests */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* GoogleHealthSyncTests.swift */; };
 		A10000000000000000000011 /* GoogleHealthRemote.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* GoogleHealthRemote.swift */; };
 		A10000000000000000000012 /* GoogleHealthRemote.swift in Tests */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* GoogleHealthRemote.swift */; };
+		A10000000000000000000013 /* GoogleHealthSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000F /* GoogleHealthSection.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +42,7 @@
 		A2000000000000000000000C /* GoogleHealthSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleHealthSync.swift; sourceTree = "<group>"; };
 		A2000000000000000000000D /* GoogleHealthSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleHealthSyncTests.swift; sourceTree = "<group>"; };
 		A2000000000000000000000E /* GoogleHealthRemote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleHealthRemote.swift; sourceTree = "<group>"; };
+		A2000000000000000000000F /* GoogleHealthSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleHealthSection.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -50,7 +52,7 @@
 
 /* Begin PBXGroup section */
 		A40000000000000000000001 = {isa = PBXGroup; children = (A40000000000000000000002 /* Sources */, A40000000000000000000003 /* Tests */, A40000000000000000000004 /* Frameworks */, A40000000000000000000005 /* Products */,); sourceTree = "<group>"; };
-		A40000000000000000000002 /* Sources */ = {isa = PBXGroup; children = (A20000000000000000000001 /* WaterApp.swift */, A20000000000000000000002 /* WaterRepository.swift */, A20000000000000000000003 /* WaterStore.swift */, A20000000000000000000004 /* BottleView.swift */, A20000000000000000000005 /* ContentView.swift */, A20000000000000000000010 /* HourlyReminder.swift */, A2000000000000000000000A /* FullScreenReminderOverlay.swift */, A2000000000000000000000B /* GoogleHealthAuth.swift */, A2000000000000000000000C /* GoogleHealthSync.swift */, A2000000000000000000000E /* GoogleHealthRemote.swift */,); path = Sources; sourceTree = "<group>"; };
+		A40000000000000000000002 /* Sources */ = {isa = PBXGroup; children = (A20000000000000000000001 /* WaterApp.swift */, A20000000000000000000002 /* WaterRepository.swift */, A20000000000000000000003 /* WaterStore.swift */, A20000000000000000000004 /* BottleView.swift */, A20000000000000000000005 /* ContentView.swift */, A20000000000000000000010 /* HourlyReminder.swift */, A2000000000000000000000A /* FullScreenReminderOverlay.swift */, A2000000000000000000000B /* GoogleHealthAuth.swift */, A2000000000000000000000C /* GoogleHealthSync.swift */, A2000000000000000000000E /* GoogleHealthRemote.swift */, A2000000000000000000000F /* GoogleHealthSection.swift */,); path = Sources; sourceTree = "<group>"; };
 		A40000000000000000000003 /* Tests */ = {isa = PBXGroup; children = (A20000000000000000000006 /* WaterRepositoryTests.swift */, A2000000000000000000000D /* GoogleHealthSyncTests.swift */,); path = Tests; sourceTree = "<group>"; };
 		A40000000000000000000004 /* Frameworks */ = {isa = PBXGroup; children = (A20000000000000000000007 /* XCTest.framework */,); name = Frameworks; sourceTree = "<group>"; };
 		A40000000000000000000005 /* Products */ = {isa = PBXGroup; children = (A20000000000000000000008 /* Water.app */, A20000000000000000000009 /* WaterTests.xctest */,); name = Products; sourceTree = "<group>"; };
@@ -71,7 +73,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A30000000000000000000003 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* WaterApp.swift in Sources */, A10000000000000000000002 /* WaterRepository.swift in Sources */, A10000000000000000000003 /* WaterStore.swift in Sources */, A10000000000000000000004 /* BottleView.swift in Sources */, A10000000000000000000005 /* ContentView.swift in Sources */, A10000000000000000000009 /* HourlyReminder.swift in Sources */, A1000000000000000000000A /* FullScreenReminderOverlay.swift in Sources */, A1000000000000000000000B /* GoogleHealthAuth.swift in Sources */, A1000000000000000000000C /* GoogleHealthSync.swift in Sources */, A10000000000000000000011 /* GoogleHealthRemote.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+		A30000000000000000000003 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* WaterApp.swift in Sources */, A10000000000000000000002 /* WaterRepository.swift in Sources */, A10000000000000000000003 /* WaterStore.swift in Sources */, A10000000000000000000004 /* BottleView.swift in Sources */, A10000000000000000000005 /* ContentView.swift in Sources */, A10000000000000000000009 /* HourlyReminder.swift in Sources */, A1000000000000000000000A /* FullScreenReminderOverlay.swift in Sources */, A1000000000000000000000B /* GoogleHealthAuth.swift in Sources */, A1000000000000000000000C /* GoogleHealthSync.swift in Sources */, A10000000000000000000011 /* GoogleHealthRemote.swift in Sources */, A10000000000000000000013 /* GoogleHealthSection.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
 		A30000000000000000000004 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000006 /* WaterRepository.swift in Tests */, A10000000000000000000007 /* WaterRepositoryTests.swift in Sources */, A1000000000000000000000D /* GoogleHealthAuth.swift in Tests */, A1000000000000000000000E /* GoogleHealthSync.swift in Tests */, A1000000000000000000000F /* GoogleHealthSyncTests.swift in Tests */, A10000000000000000000012 /* GoogleHealthRemote.swift in Tests */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 

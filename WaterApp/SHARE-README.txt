@@ -1,7 +1,8 @@
 Water for macOS 14 or newer (Apple Silicon and Intel)
 
 1. Unzip this archive and drag Water.app into Applications.
-2. Open Water.app. Look for the droplet in the menu bar (there is no Dock icon).
+2. Open Water.app. Its movable window appears; use the droplet in the status
+   bar to show it again after closing it (there is no Dock icon).
 3. If macOS says it cannot verify the developer, only if you trust the sender:
    try opening once, then go to System Settings > Privacy & Security > Open Anyway.
    Follow Apple's instructions: https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac

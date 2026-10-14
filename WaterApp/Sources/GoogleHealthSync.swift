@@ -53,7 +53,6 @@ final class GoogleHealthSync: ObservableObject {
             Task { @MainActor [weak self] in await self?.sync() }
         }
         Task { await sync() }
-        Task { await refreshGoogleDrinks() }
     }
 
     @discardableResult
