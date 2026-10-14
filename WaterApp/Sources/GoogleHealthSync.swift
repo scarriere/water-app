@@ -13,6 +13,7 @@ final class GoogleHealthSync: ObservableObject {
         var operationType: String?
         var uncertain = false
         var rejectedStatus: Int? // A definite HTTP rejection; unlike a lost response, safe to retry later.
+        var lastFailure: String? // Safe diagnostic only; never store response bodies or credentials.
     }
 
     struct Ledger: Codable {
@@ -98,6 +99,7 @@ final class GoogleHealthSync: ObservableObject {
             var ledger = try loadLedger(subject: subject)
             for (id, var entry) in ledger.entries where entry.uncertain {
                 entry.uncertain = false
+                entry.lastFailure = nil
                 entry.operationName = nil
                 entry.operationType = nil
                 ledger.entries[id] = entry
@@ -157,6 +159,12 @@ final class GoogleHealthSync: ObservableObject {
                 status = "Google Health rejected an upload (HTTP \(code)). Export paused; check API access, then retry."
                 return
             }
+            let unresolved = ledger.entries.values.filter(\.uncertain)
+            if !unresolved.isEmpty {
+                needsReview = true
+                status = Self.reviewStatus(for: unresolved)
+                return // Never submit more drinks while an earlier outcome is unknown.
+            }
 
             for id in ledger.entries.keys.sorted() {
                 guard var entry = ledger.entries[id] else { continue }
@@ -167,12 +175,12 @@ final class GoogleHealthSync: ObservableObject {
                 if let operation = entry.operationName {
                     let result = try await request("GET", path: operation)
                     if result["done"] as? Bool != true { continue }
-                    if let error = result["error"] {
+                    if result["error"] != nil {
                         entry.uncertain = true
+                        entry.lastFailure = "Google reported a failed operation"
                         ledger.entries[id] = entry
                         try save(ledger, subject: subject)
-                        status = "Google operation failed: \(error). Review sync before retrying."
-                        continue
+                        break
                     }
                     if entry.operationType == "delete" {
                         ledger.entries.removeValue(forKey: id)
@@ -181,9 +189,10 @@ final class GoogleHealthSync: ObservableObject {
                     }
                     guard let name = Self.dataPointName(in: result["response"] ?? result) else {
                         entry.uncertain = true
+                        entry.lastFailure = "Google operation completed without a data-point ID"
                         ledger.entries[id] = entry
                         try save(ledger, subject: subject)
-                        continue
+                        break
                     }
                     entry.remoteName = name
                     entry.operationName = nil
@@ -204,8 +213,10 @@ final class GoogleHealthSync: ObservableObject {
                             ledger.entries[id] = current
                         } catch {
                             current.uncertain = true
+                            current.lastFailure = Self.safeSyncError(error)
                             ledger.entries[id] = current
-                            status = "Deletion needs review: \(error.localizedDescription)"
+                            try save(ledger, subject: subject)
+                            break
                         }
                     } else {
                         ledger.entries.removeValue(forKey: id) // unsent drink was undone
@@ -226,8 +237,10 @@ final class GoogleHealthSync: ObservableObject {
                         break // Do not try every historical drink against the same rejected API.
                     } catch {
                         current.uncertain = true
+                        current.lastFailure = Self.safeSyncError(error)
                         ledger.entries[id] = current
-                        status = "Upload outcome unknown; review Google data before retrying. \(error.localizedDescription)"
+                        try save(ledger, subject: subject)
+                        break // Do not submit the remaining historical drinks after one unknown result.
                     }
                 }
                 try save(ledger, subject: subject)
@@ -239,7 +252,7 @@ final class GoogleHealthSync: ObservableObject {
             if let code = ledger.entries.values.compactMap(\.rejectedStatus).first {
                 status = "Google Health rejected an upload (HTTP \(code)). Export paused; check API access, then retry."
             } else if reviews > 0 {
-                status = "\(reviews) drink(s) need manual review; no automatic duplicate uploads"
+                status = Self.reviewStatus(for: ledger.entries.values.filter(\.uncertain))
             } else { status = "Sync checked • \(pending) operation(s) pending" }
         } catch {
             status = "Sync paused: \(error.localizedDescription)"
@@ -247,7 +260,18 @@ final class GoogleHealthSync: ObservableObject {
     }
 
     static func isDefinitiveRejection(_ status: Int) -> Bool {
-        [400, 401, 403].contains(status)
+        [400, 401, 403, 404, 405].contains(status)
+    }
+
+    static func reviewStatus(for entries: [Entry]) -> String {
+        let detail = entries.compactMap(\.lastFailure).first ?? "no error saved by the earlier version"
+        return "\(entries.count) drink(s) need manual review. Last failure: \(detail). Check Google for duplicates before retrying."
+    }
+
+    private static func safeSyncError(_ error: Error) -> String {
+        if let error = error as? SyncError { return error.localizedDescription }
+        if let error = error as? URLError { return "Network error (\(error.code.rawValue))" }
+        return "Upload outcome unknown (network or response error)"
     }
 
     private enum SyncError: LocalizedError {

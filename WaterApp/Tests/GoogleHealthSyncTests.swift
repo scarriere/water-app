@@ -69,6 +69,8 @@ final class GoogleHealthSyncTests: XCTestCase {
         XCTAssertTrue(GoogleHealthSync.isDefinitiveRejection(400))
         XCTAssertTrue(GoogleHealthSync.isDefinitiveRejection(401))
         XCTAssertTrue(GoogleHealthSync.isDefinitiveRejection(403))
+        XCTAssertTrue(GoogleHealthSync.isDefinitiveRejection(404))
+        XCTAssertTrue(GoogleHealthSync.isDefinitiveRejection(405))
         XCTAssertFalse(GoogleHealthSync.isDefinitiveRejection(408))
         XCTAssertFalse(GoogleHealthSync.isDefinitiveRejection(429))
         XCTAssertFalse(GoogleHealthSync.isDefinitiveRejection(500))
@@ -80,6 +82,16 @@ final class GoogleHealthSyncTests: XCTestCase {
         XCTAssertFalse(decoded.uncertain)
         let old = Data(#"{"at":"2026-10-01T12:00:00Z","ml":355,"uncertain":true}"#.utf8)
         XCTAssertNil(try JSONDecoder().decode(GoogleHealthSync.Entry.self, from: old).rejectedStatus)
+        XCTAssertNil(try JSONDecoder().decode(GoogleHealthSync.Entry.self, from: old).lastFailure)
+    }
+
+    func testReviewStatusShowsSafePersistedFailure() {
+        var entry = GoogleHealthSync.Entry(at: "2026-10-01T12:00:00Z", ml: 355)
+        entry.uncertain = true
+        entry.lastFailure = "Google Health returned HTTP 429."
+        XCTAssertTrue(GoogleHealthSync.reviewStatus(for: [entry]).contains("HTTP 429"))
+        entry.lastFailure = nil
+        XCTAssertTrue(GoogleHealthSync.reviewStatus(for: [entry]).contains("no error saved"))
     }
 
     func testLedgerPreservesPendingOperationsAndCutoff() throws {
