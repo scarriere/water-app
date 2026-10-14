@@ -82,6 +82,43 @@ final class GoogleHealthSyncTests: XCTestCase {
         XCTAssertEqual(matches[1].confidence, .confirmed)
     }
 
+    func testTodayMissingExcludesFoundAndPossibleMatchesAcrossMidnight() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let day = ISO8601DateFormatter().date(from: "2026-10-01T12:00:00Z")!
+        let local: [WaterRepository.Drink] = [
+            .init(at: "2026-10-01T08:00:00Z", ml: 355, id: "known"),
+            .init(at: "2026-10-01T09:00:00Z", ml: 355, id: "possible"),
+            .init(at: "2026-10-01T10:00:00Z", ml: 355, id: "missing"),
+            .init(at: "2026-10-02T00:01:00Z", ml: 355, id: "tomorrow")
+        ]
+        var entry = GoogleHealthSync.Entry(at: local[0].at, ml: 355)
+        entry.remoteName = "users/me/dataTypes/hydration-log/dataPoints/known-id"
+        let remote: [GoogleHealthRemote.Record] = [
+            .init(name: entry.remoteName!, at: ISO8601DateFormatter().date(from: local[0].at)!, ml: 355),
+            .init(name: "users/me/dataTypes/hydration-log/dataPoints/possible-id",
+                  at: ISO8601DateFormatter().date(from: local[1].at)!, ml: 355),
+            .init(name: "users/me/dataTypes/hydration-log/dataPoints/tomorrow-id",
+                  at: ISO8601DateFormatter().date(from: local[3].at)!, ml: 355)
+        ]
+        let missing = GoogleHealthRemote.missingToday(local, remote: remote,
+                                                       entries: ["known": entry], day: day, calendar: calendar)
+        XCTAssertEqual(missing.map(\.id), ["missing"])
+    }
+
+    func testMissingTodayUsesLocalCalendarRatherThanUTCDay() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: -7 * 3_600)!
+        let day = ISO8601DateFormatter().date(from: "2026-10-01T00:30:00Z")!
+        let local: [WaterRepository.Drink] = [
+            .init(at: "2026-10-01T00:05:00Z", ml: 355, id: "local-september"),
+            .init(at: "2026-10-01T08:05:00Z", ml: 355, id: "local-october")
+        ]
+        let missing = GoogleHealthRemote.missingToday(local, remote: [],
+                                                       entries: [:], day: day, calendar: calendar)
+        XCTAssertEqual(missing.map(\.id), ["local-september"])
+    }
+
     func testUnparseableGoogleListIsNotReportedAsEmpty() {
         XCTAssertThrowsError(try GoogleHealthRemote.page(["dataPoints": [["name": "unexpected"]]]))
     }

@@ -113,6 +113,11 @@ struct ContentView: View {
         .onChange(of: googleExpanded) { _, expanded in
             if expanded { Task { await health.refreshGoogleDrinks() } }
         }
+        .onChange(of: store.dayKey) { oldDay, newDay in
+            guard oldDay != newDay else { return }
+            health.refreshTodayCounts()
+            if googleExpanded { Task { await health.refreshGoogleDrinks() } }
+        }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
             if !animating { refresh() }
         }

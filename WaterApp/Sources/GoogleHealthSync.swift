@@ -29,6 +29,8 @@ final class GoogleHealthSync: ObservableObject {
     @Published private(set) var hasRejectedUploads = false
     @Published private(set) var hasReadPermission = false
     @Published private(set) var googleDrinks: [GoogleHealthRemoteDrink] = []
+    @Published private(set) var missingTodayDrinks: [GoogleHealthMissingDrink] = []
+    @Published private(set) var googleListComplete = false
     @Published private(set) var googleListStatus = "Connect to see Google records"
     @Published private(set) var isRefreshingGoogle = false
     @Published private(set) var queuedCount = 0
@@ -78,6 +80,8 @@ final class GoogleHealthSync: ObservableObject {
             account = auth.credentials?.email
             hasReadPermission = auth.hasReadPermission
             googleDrinks = [] // Never display another account's previously fetched health data.
+            missingTodayDrinks = []
+            googleListComplete = false
             googleListStatus = "Reading Google hydration logs…"
             status = "Connected; syncing new drinks"
             running = false
@@ -144,6 +148,8 @@ final class GoogleHealthSync: ObservableObject {
         hasClientSecret = false
         hasReadPermission = false
         googleDrinks = []
+        missingTodayDrinks = []
+        googleListComplete = false
         googleListStatus = "Connect to see Google records"
         queuedCount = 0
         uncertainCount = 0
@@ -281,6 +287,9 @@ final class GoogleHealthSync: ObservableObject {
     /// exports; a timestamp/volume match without a saved remote ID is marked possible.
     func refreshGoogleDrinks() async {
         guard !isRefreshingGoogle, let subject = auth.credentials?.subject else { return }
+        googleDrinks = []
+        missingTodayDrinks = []
+        googleListComplete = false
         guard auth.hasReadPermission else {
             hasReadPermission = false
             googleListStatus = "Google nutrition read permission needed. Add it to the OAuth app and choose Grant read access."
@@ -304,10 +313,23 @@ final class GoogleHealthSync: ObservableObject {
                 more = pageToken?.isEmpty == false
                 if !more { break }
             }
+            let today = Date()
             let ledger = try loadLedger(subject: subject)
-            googleDrinks = GoogleHealthRemote.matchingWaterDrinks(all, entries: Array(ledger.entries.values))
-            let possible = googleDrinks.filter { $0.confidence == .possible }.count
-            googleListStatus = "Google returned \(all.count) hydration record(s); \(googleDrinks.count - possible) confirmed Water, \(possible) possible Water match(es)\(more ? "; more pages exist" : "")"
+            let remoteToday = all.filter { Calendar.current.isDate($0.at, inSameDayAs: today) }
+            googleDrinks = GoogleHealthRemote.matchingWaterDrinks(remoteToday,
+                entries: Array(ledger.entries.values))
+            googleListComplete = !more
+            if googleListComplete {
+                let localToday = try repository.loadRecord(on: today).drinks
+                missingTodayDrinks = GoogleHealthRemote.missingToday(localToday, remote: remoteToday,
+                    entries: ledger.entries, day: today)
+            }
+            updateCounts(ledger)
+            let confirmed = googleDrinks.filter { $0.confidence == .confirmed }.count
+            let possible = googleDrinks.count - confirmed
+            googleListStatus = more
+                ? "Today: \(confirmed) found on Google, \(possible) possible matches. Google returned more than 1,000 records; missing drinks cannot be determined."
+                : "Today: \(confirmed) found on Google, \(possible) possible matches, \(missingTodayDrinks.count) not found yet."
         } catch let SyncError.http(code) {
             googleListStatus = "Google hydration list failed (HTTP \(code)). Check nutrition read permission and API access."
         } catch {
@@ -315,9 +337,20 @@ final class GoogleHealthSync: ObservableObject {
         }
     }
 
+    func refreshTodayCounts() {
+        guard let subject = auth.credentials?.subject, let ledger = try? loadLedger(subject: subject) else { return }
+        updateCounts(ledger)
+    }
+
     private func updateCounts(_ ledger: Ledger) {
-        uncertainCount = ledger.entries.values.filter(\.uncertain).count
-        queuedCount = ledger.entries.values.filter { !$0.uncertain && $0.remoteName == nil && $0.operationName == nil }.count
+        let today = Date()
+        let parser = ISO8601DateFormatter()
+        let entries = ledger.entries.values.filter { entry in
+            guard let at = parser.date(from: entry.at) else { return false }
+            return Calendar.current.isDate(at, inSameDayAs: today)
+        }
+        uncertainCount = entries.filter(\.uncertain).count
+        queuedCount = entries.filter { !$0.uncertain && $0.remoteName == nil && $0.operationName == nil }.count
     }
 
     static func isDefinitiveRejection(_ status: Int) -> Bool {

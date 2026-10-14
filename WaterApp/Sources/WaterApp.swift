@@ -9,6 +9,8 @@ final class WaterAppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: NSStatusItem?
     private var mainWindow: NSWindow?
+    private var hasShownWindow = false
+    private var windowAnimationInProgress = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Stay in the menu bar even when the movable window is closed.
@@ -30,10 +32,43 @@ final class WaterAppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     @objc private func toggleWindow() {
-        if let mainWindow, mainWindow.isVisible && mainWindow.isKeyWindow {
-            mainWindow.orderOut(nil)
+        guard !windowAnimationInProgress else { return }
+        if let mainWindow, mainWindow.isVisible {
+            snapToStatusItem(mainWindow)
         } else {
             showWindow()
+        }
+    }
+
+    private func statusIconFrame() -> NSRect? {
+        guard let button = statusItem?.button, let barWindow = button.window else { return nil }
+        let rect = barWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        return NSRect(x: rect.midX - 16, y: rect.midY - 16, width: 32, height: 32)
+    }
+
+    private func snapToStatusItem(_ window: NSWindow) {
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+              let target = statusIconFrame() else {
+            window.orderOut(nil)
+            return
+        }
+        let savedFrame = window.frame
+        let savedMinimum = window.minSize
+        windowAnimationInProgress = true
+        window.minSize = .zero
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.22
+            window.animator().setFrame(target, display: true)
+            window.animator().alphaValue = 0
+        } completionHandler: { [weak self, weak window] in
+            Task { @MainActor in
+                guard let window else { return }
+                window.orderOut(nil)
+                window.setFrame(savedFrame, display: false)
+                window.alphaValue = 1
+                window.minSize = savedMinimum
+                self?.windowAnimationInProgress = false
+            }
         }
     }
 
@@ -66,9 +101,33 @@ final class WaterAppDelegate: NSObject, NSApplicationDelegate {
             if !window.setFrameUsingName("WaterMainWindow") { window.center() }
             mainWindow = window
         }
-        if mainWindow?.isMiniaturized == true { mainWindow?.deminiaturize(nil) }
+        guard let mainWindow else { return }
+        if mainWindow.isMiniaturized { mainWindow.deminiaturize(nil) }
         NSApplication.shared.activate(ignoringOtherApps: true)
-        mainWindow?.makeKeyAndOrderFront(nil)
+        if hasShownWindow && !mainWindow.isVisible &&
+            !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+            let origin = statusIconFrame() {
+            let destination = mainWindow.frame
+            let savedMinimum = mainWindow.minSize
+            windowAnimationInProgress = true
+            mainWindow.minSize = .zero
+            mainWindow.setFrame(origin, display: false)
+            mainWindow.alphaValue = 0
+            mainWindow.makeKeyAndOrderFront(nil)
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.22
+                mainWindow.animator().setFrame(destination, display: true)
+                mainWindow.animator().alphaValue = 1
+            } completionHandler: { [weak self, weak mainWindow] in
+                Task { @MainActor in
+                    mainWindow?.minSize = savedMinimum
+                    self?.windowAnimationInProgress = false
+                }
+            }
+        } else {
+            mainWindow.makeKeyAndOrderFront(nil)
+        }
+        hasShownWindow = true
     }
 }
 

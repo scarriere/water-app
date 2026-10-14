@@ -10,6 +10,12 @@ struct GoogleHealthRemoteDrink: Identifiable, Equatable {
     let confidence: Confidence
 }
 
+struct GoogleHealthMissingDrink: Identifiable, Equatable {
+    let id: String
+    let at: Date
+    let ml: Int
+}
+
 enum GoogleHealthRemote {
     struct Record {
         let name: String
@@ -59,6 +65,25 @@ enum GoogleHealthRemote {
             guard candidates.count == 1 else { return nil }
             return GoogleHealthRemoteDrink(id: record.name, at: record.at, ml: record.ml,
                                             confidence: .possible)
+        }.sorted { $0.at > $1.at }
+    }
+
+    /// Only call when the full Google list was read. A matching but unattributed
+    /// remote record prevents a false "missing" label, without marking it confirmed.
+    static func missingToday(_ local: [WaterRepository.Drink], remote: [Record],
+                             entries: [String: GoogleHealthSync.Entry], day: Date,
+                             calendar: Calendar = .current) -> [GoogleHealthMissingDrink] {
+        let todaysRemote = remote.filter { calendar.isDate($0.at, inSameDayAs: day) }
+        let remoteIDs = Set(todaysRemote.compactMap { dataPointID($0.name) })
+        return local.compactMap { drink -> GoogleHealthMissingDrink? in
+            guard let id = drink.id, let at = date(from: drink.at),
+                  calendar.isDate(at, inSameDayAs: day) else { return nil }
+            if let name = entries[id]?.remoteName, let remoteID = dataPointID(name),
+               remoteIDs.contains(remoteID) { return nil }
+            if todaysRemote.contains(where: { $0.ml == drink.ml && abs($0.at.timeIntervalSince(at)) < 1 }) {
+                return nil // Could have arrived through Water; never call this definitively missing.
+            }
+            return GoogleHealthMissingDrink(id: id, at: at, ml: drink.ml)
         }.sorted { $0.at > $1.at }
     }
 
