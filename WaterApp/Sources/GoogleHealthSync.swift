@@ -12,6 +12,7 @@ final class GoogleHealthSync: ObservableObject {
         var operationName: String?
         var operationType: String?
         var uncertain = false
+        var rejectedStatus: Int? // A definite HTTP rejection; unlike a lost response, safe to retry later.
     }
 
     struct Ledger: Codable {
@@ -24,6 +25,7 @@ final class GoogleHealthSync: ObservableObject {
     @Published private(set) var status = "Not connected"
     @Published private(set) var syncing = false
     @Published private(set) var needsReview = false
+    @Published private(set) var hasRejectedUploads = false
 
     private let repository: WaterRepository
     private let auth = GoogleHealthAuth()
@@ -106,6 +108,21 @@ final class GoogleHealthSync: ObservableObject {
         } catch { status = "Could not retry: \(error.localizedDescription)" }
     }
 
+    /// Definite 400/401/403 responses did not create records. Retry only after fixing access.
+    func retryRejected() async {
+        guard !running, let subject = auth.credentials?.subject else { return }
+        do {
+            var ledger = try loadLedger(subject: subject)
+            for (id, var entry) in ledger.entries where entry.rejectedStatus != nil {
+                entry.rejectedStatus = nil
+                ledger.entries[id] = entry
+            }
+            try save(ledger, subject: subject)
+            hasRejectedUploads = false
+            await sync()
+        } catch { status = "Could not retry rejected uploads: \(error.localizedDescription)" }
+    }
+
     /// Keeps the ledger: reconnecting must not upload previously exported drinks twice.
     func disconnect() {
         guard !running else { return }
@@ -134,6 +151,12 @@ final class GoogleHealthSync: ObservableObject {
                 ledger.entries[id] = Entry(at: drink.at, ml: drink.ml)
             }
             try save(ledger, subject: subject)
+            if let code = ledger.entries.values.compactMap(\.rejectedStatus).first {
+                hasRejectedUploads = true
+                needsReview = ledger.entries.values.contains(where: \.uncertain)
+                status = "Google Health rejected an upload (HTTP \(code)). Export paused; check API access, then retry."
+                return
+            }
 
             for id in ledger.entries.keys.sorted() {
                 guard var entry = ledger.entries[id] else { continue }
@@ -196,6 +219,11 @@ final class GoogleHealthSync: ObservableObject {
                         current.operationName = operation
                         current.operationType = "create"
                         ledger.entries[id] = current
+                    } catch let SyncError.http(code) where Self.isDefinitiveRejection(code) {
+                        current.rejectedStatus = code
+                        ledger.entries[id] = current
+                        try save(ledger, subject: subject)
+                        break // Do not try every historical drink against the same rejected API.
                     } catch {
                         current.uncertain = true
                         ledger.entries[id] = current
@@ -205,13 +233,21 @@ final class GoogleHealthSync: ObservableObject {
                 try save(ledger, subject: subject)
             }
             let reviews = ledger.entries.values.filter(\.uncertain).count
+            hasRejectedUploads = ledger.entries.values.contains { $0.rejectedStatus != nil }
             needsReview = reviews > 0
             let pending = ledger.entries.values.filter { $0.operationName != nil }.count
-            if reviews > 0 { status = "\(reviews) drink(s) need manual review; no automatic duplicate uploads" }
-            else { status = "Sync checked • \(pending) operation(s) pending" }
+            if let code = ledger.entries.values.compactMap(\.rejectedStatus).first {
+                status = "Google Health rejected an upload (HTTP \(code)). Export paused; check API access, then retry."
+            } else if reviews > 0 {
+                status = "\(reviews) drink(s) need manual review; no automatic duplicate uploads"
+            } else { status = "Sync checked • \(pending) operation(s) pending" }
         } catch {
             status = "Sync paused: \(error.localizedDescription)"
         }
+    }
+
+    static func isDefinitiveRejection(_ status: Int) -> Bool {
+        [400, 401, 403].contains(status)
     }
 
     private enum SyncError: LocalizedError {

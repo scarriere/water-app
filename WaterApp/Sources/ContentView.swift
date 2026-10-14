@@ -106,10 +106,13 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
             if health.account != nil {
-                HStack {
+                VStack(alignment: .leading, spacing: 4) {
                     Button("Export earlier timed drinks…") { confirmBackfill = true }
                     if health.needsReview {
                         Button("Review and retry…") { confirmRetry = true }
+                    }
+                    if health.hasRejectedUploads {
+                        Button("Retry rejected uploads") { Task { await health.retryRejected() } }
                     }
                 }
                 .font(.caption)

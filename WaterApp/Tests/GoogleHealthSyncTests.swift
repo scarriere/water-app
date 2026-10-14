@@ -65,6 +65,23 @@ final class GoogleHealthSyncTests: XCTestCase {
         XCTAssertNil(GoogleHealthSync.dataPointName(in: ["name": "users/me/operations/1234"]))
     }
 
+    func testDefiniteHTTPRejectionsAreSeparatedFromAmbiguousResults() throws {
+        XCTAssertTrue(GoogleHealthSync.isDefinitiveRejection(400))
+        XCTAssertTrue(GoogleHealthSync.isDefinitiveRejection(401))
+        XCTAssertTrue(GoogleHealthSync.isDefinitiveRejection(403))
+        XCTAssertFalse(GoogleHealthSync.isDefinitiveRejection(408))
+        XCTAssertFalse(GoogleHealthSync.isDefinitiveRejection(429))
+        XCTAssertFalse(GoogleHealthSync.isDefinitiveRejection(500))
+        var entry = GoogleHealthSync.Entry(at: "2026-10-01T12:00:00Z", ml: 355)
+        entry.rejectedStatus = 403
+        let decoded = try JSONDecoder().decode(GoogleHealthSync.Entry.self,
+                                                from: JSONEncoder().encode(entry))
+        XCTAssertEqual(decoded.rejectedStatus, 403)
+        XCTAssertFalse(decoded.uncertain)
+        let old = Data(#"{"at":"2026-10-01T12:00:00Z","ml":355,"uncertain":true}"#.utf8)
+        XCTAssertNil(try JSONDecoder().decode(GoogleHealthSync.Entry.self, from: old).rejectedStatus)
+    }
+
     func testLedgerPreservesPendingOperationsAndCutoff() throws {
         var ledger = GoogleHealthSync.Ledger(cutoff: Date(timeIntervalSince1970: 1_780_000_000))
         var entry = GoogleHealthSync.Entry(at: "2026-10-01T12:00:00Z", ml: 355)
