@@ -9,6 +9,14 @@ final class GoogleHealthSyncTests: XCTestCase {
         XCTAssertTrue(GoogleHealthAuth.scopeWasGranted(nil))
     }
 
+    func testTokenErrorDetailsNeverExposeCodesOrTokens() {
+        XCTAssertEqual(GoogleHealthAuth.safeGoogleErrorDetail("Missing required parameter: client_secret."),
+                       "Missing required parameter: client_secret.")
+        XCTAssertNil(GoogleHealthAuth.safeGoogleErrorDetail("Bad code=4/0AXlqoi7LongValue"))
+        XCTAssertNil(GoogleHealthAuth.safeGoogleErrorDetail("See https://accounts.google.com/error"))
+        XCTAssertNil(GoogleHealthAuth.safeGoogleErrorDetail(String(repeating: "a", count: 32)))
+    }
+
     func testOAuthLoopbackAcceptsOneCallbackAndRejectsOtherPaths() async throws {
         let server = try LoopbackCallback()
         defer { server.cancel() }

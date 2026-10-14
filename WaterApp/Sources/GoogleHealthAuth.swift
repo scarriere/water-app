@@ -16,7 +16,7 @@ final class GoogleHealthAuth {
     }
 
     enum AuthError: LocalizedError {
-        case missingClientID, callback(String), missingHealthScope, tokenRejected(Int, String)
+        case missingClientID, callback(String), missingHealthScope, tokenRejected(Int, String, String?)
         case missingRefreshToken, invalidResponse, noCredentials
         var errorDescription: String? {
             switch self {
@@ -24,8 +24,8 @@ final class GoogleHealthAuth {
             case .callback(let message): return "Google sign-in: \(message)"
             case .missingHealthScope:
                 return "Google did not grant water-write permission. Select the Google Health nutrition permission on the consent screen; if it is not offered, check Google Health API access for this Cloud project."
-            case .tokenRejected(let status, let code):
-                return "Google token exchange failed (HTTP \(status), \(code)). Check that the OAuth client is a Desktop app."
+            case .tokenRejected(let status, let code, let detail):
+                return "Google token exchange failed (HTTP \(status), \(code))\(detail.map { ": \($0)" } ?? ".")"
             case .missingRefreshToken: return "Google did not grant offline access. Reconnect and allow access."
             case .invalidResponse: return "Unexpected Google OAuth response."
             case .noCredentials: return "Connect Google Health first."
@@ -113,6 +113,20 @@ final class GoogleHealthAuth {
         return scopes.split(separator: " ").contains(Substring(healthScope))
     }
 
+    /// Include only short, plain-language Google errors; never render secrets or a callback URL.
+    static func safeGoogleErrorDetail(_ raw: String?) -> String? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty, raw.count <= 200,
+              !raw.contains("://"), !raw.contains("@"), !raw.contains("="),
+              !raw.contains("\n"), !raw.contains("\r"),
+              raw.range(of: #"[A-Za-z0-9_-]{28,}"#, options: .regularExpression) == nil else {
+            return nil
+        }
+        let allowed = CharacterSet.alphanumerics.union(.whitespaces)
+            .union(CharacterSet(charactersIn: " .,:;_-'()[]"))
+        return raw.unicodeScalars.allSatisfy(allowed.contains) ? raw : nil
+    }
+
     private func tokenRequest(_ form: [String: String]) async throws -> [String: Any] {
         var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
         request.httpMethod = "POST"
@@ -129,7 +143,8 @@ final class GoogleHealthAuth {
             let safe = code.unicodeScalars.allSatisfy {
                 CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-").contains($0)
             } && code.count <= 80 ? code : "unknown_error"
-            throw AuthError.tokenRejected(http.statusCode, safe)
+            throw AuthError.tokenRejected(http.statusCode, safe,
+                                          Self.safeGoogleErrorDetail(json?["error_description"] as? String))
         }
         guard let json else { throw AuthError.invalidResponse }
         return json
