@@ -13,6 +13,7 @@ final class GoogleHealthAuth {
         var expiresAt: Date
         var subject: String
         var email: String
+        var scopes: String? // Optional so credentials saved by older Water versions still load.
     }
 
     enum AuthError: LocalizedError {
@@ -38,12 +39,14 @@ final class GoogleHealthAuth {
     }
 
     static let healthScope = "https://www.googleapis.com/auth/googlehealth.nutrition.writeonly"
+    static let readScope = "https://www.googleapis.com/auth/googlehealth.nutrition.readonly"
     private static let keychainService = "com.samtools.water.google-health"
     private static let secretKeychainService = "com.samtools.water.google-health-client-secret"
     private let clientID: String
     private(set) var credentials: Credentials?
 
     var hasClientSecret: Bool { Self.readClientSecret(for: clientID) != nil }
+    var hasReadPermission: Bool { Self.scopeIsPresent(Self.readScope, in: credentials?.scopes) }
 
     func saveClientSecret(_ value: String) throws {
         let secret = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -106,7 +109,7 @@ final class GoogleHealthAuth {
         parts.queryItems = [
             .init(name: "client_id", value: clientID), .init(name: "redirect_uri", value: redirect),
             .init(name: "response_type", value: "code"), .init(name: "scope", value:
-                "openid email \(Self.healthScope)"),
+                "openid email \(Self.healthScope) \(Self.readScope)"),
             .init(name: "access_type", value: "offline"), .init(name: "prompt", value: "consent"),
             .init(name: "state", value: state), .init(name: "code_challenge", value: challenge),
             .init(name: "code_challenge_method", value: "S256")
@@ -134,7 +137,8 @@ final class GoogleHealthAuth {
               let email = claims["email"] as? String else { throw AuthError.invalidResponse }
         let expiry = response["expires_in"] as? Double ?? 3600
         let value = Credentials(accessToken: access, refreshToken: refresh,
-                                expiresAt: Date().addingTimeInterval(expiry), subject: subject, email: email)
+                                expiresAt: Date().addingTimeInterval(expiry), subject: subject, email: email,
+                                scopes: response["scope"] as? String ?? params["scope"])
         try Self.saveKeychain(value)
         credentials = value
     }
@@ -154,7 +158,11 @@ final class GoogleHealthAuth {
 
     static func scopeWasGranted(_ scopes: String?) -> Bool {
         guard let scopes else { return true } // Some providers omit the callback scope field.
-        return scopes.split(separator: " ").contains(Substring(healthScope))
+        return scopeIsPresent(healthScope, in: scopes)
+    }
+
+    static func scopeIsPresent(_ scope: String, in scopes: String?) -> Bool {
+        scopes?.split(separator: " ").contains(Substring(scope)) ?? false
     }
 
     /// Include only short, plain-language Google errors; never render secrets or a callback URL.

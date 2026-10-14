@@ -27,6 +27,12 @@ final class GoogleHealthSync: ObservableObject {
     @Published private(set) var syncing = false
     @Published private(set) var needsReview = false
     @Published private(set) var hasRejectedUploads = false
+    @Published private(set) var hasReadPermission = false
+    @Published private(set) var googleDrinks: [GoogleHealthRemoteDrink] = []
+    @Published private(set) var googleListStatus = "Connect to see Google records"
+    @Published private(set) var isRefreshingGoogle = false
+    @Published private(set) var queuedCount = 0
+    @Published private(set) var uncertainCount = 0
 
     private let repository: WaterRepository
     private let auth = GoogleHealthAuth()
@@ -37,6 +43,7 @@ final class GoogleHealthSync: ObservableObject {
         self.repository = repository
         account = auth.credentials?.email
         hasClientSecret = auth.hasClientSecret
+        hasReadPermission = auth.hasReadPermission
         if account != nil { status = "Ready to sync" }
     }
 
@@ -46,6 +53,7 @@ final class GoogleHealthSync: ObservableObject {
             Task { @MainActor [weak self] in await self?.sync() }
         }
         Task { await sync() }
+        Task { await refreshGoogleDrinks() }
     }
 
     @discardableResult
@@ -69,9 +77,13 @@ final class GoogleHealthSync: ObservableObject {
         do {
             try await auth.connect()
             account = auth.credentials?.email
+            hasReadPermission = auth.hasReadPermission
+            googleDrinks = [] // Never display another account's previously fetched health data.
+            googleListStatus = "Reading Google hydration logs…"
             status = "Connected; syncing new drinks"
             running = false
             await sync()
+            await refreshGoogleDrinks()
         } catch {
             status = error.localizedDescription
             running = false
@@ -131,6 +143,11 @@ final class GoogleHealthSync: ObservableObject {
         auth.disconnect()
         account = nil
         hasClientSecret = false
+        hasReadPermission = false
+        googleDrinks = []
+        googleListStatus = "Connect to see Google records"
+        queuedCount = 0
+        uncertainCount = 0
         status = "Disconnected (local credentials removed; Google records were not deleted)"
     }
 
@@ -153,6 +170,7 @@ final class GoogleHealthSync: ObservableObject {
                 ledger.entries[id] = Entry(at: drink.at, ml: drink.ml)
             }
             try save(ledger, subject: subject)
+            updateCounts(ledger)
             if let code = ledger.entries.values.compactMap(\.rejectedStatus).first {
                 hasRejectedUploads = true
                 needsReview = ledger.entries.values.contains(where: \.uncertain)
@@ -246,6 +264,7 @@ final class GoogleHealthSync: ObservableObject {
                 try save(ledger, subject: subject)
             }
             let reviews = ledger.entries.values.filter(\.uncertain).count
+            updateCounts(ledger)
             hasRejectedUploads = ledger.entries.values.contains { $0.rejectedStatus != nil }
             needsReview = reviews > 0
             let pending = ledger.entries.values.filter { $0.operationName != nil }.count
@@ -257,6 +276,49 @@ final class GoogleHealthSync: ObservableObject {
         } catch {
             status = "Sync paused: \(error.localizedDescription)"
         }
+    }
+
+    /// Query Google without writing anything. Show only matches to Water's own local
+    /// exports; a timestamp/volume match without a saved remote ID is marked possible.
+    func refreshGoogleDrinks() async {
+        guard !isRefreshingGoogle, let subject = auth.credentials?.subject else { return }
+        guard auth.hasReadPermission else {
+            hasReadPermission = false
+            googleListStatus = "Google nutrition read permission needed. Add it to the OAuth app and choose Grant read access."
+            return
+        }
+        isRefreshingGoogle = true
+        googleListStatus = "Reading Google hydration logs…"
+        defer { isRefreshingGoogle = false }
+        do {
+            var all: [GoogleHealthRemote.Record] = []
+            var pageToken: String?
+            var more = false
+            for _ in 0..<10 { // bounded: no unbounded health-history download
+                var components = URLComponents()
+                components.queryItems = [URLQueryItem(name: "pageSize", value: "100")]
+                if let pageToken { components.queryItems?.append(URLQueryItem(name: "pageToken", value: pageToken)) }
+                let path = "users/me/dataTypes/hydration-log/dataPoints?\(components.percentEncodedQuery ?? "")"
+                let page = try GoogleHealthRemote.page(try await request("GET", path: path))
+                all += page.records
+                pageToken = page.nextPageToken
+                more = pageToken?.isEmpty == false
+                if !more { break }
+            }
+            let ledger = try loadLedger(subject: subject)
+            googleDrinks = GoogleHealthRemote.matchingWaterDrinks(all, entries: Array(ledger.entries.values))
+            let possible = googleDrinks.filter { $0.confidence == .possible }.count
+            googleListStatus = "Google returned \(all.count) hydration record(s); \(googleDrinks.count - possible) confirmed Water, \(possible) possible Water match(es)\(more ? "; more pages exist" : "")"
+        } catch let SyncError.http(code) {
+            googleListStatus = "Google hydration list failed (HTTP \(code)). Check nutrition read permission and API access."
+        } catch {
+            googleListStatus = "Could not read Google hydration logs: \(error.localizedDescription)"
+        }
+    }
+
+    private func updateCounts(_ ledger: Ledger) {
+        uncertainCount = ledger.entries.values.filter(\.uncertain).count
+        queuedCount = ledger.entries.values.filter { !$0.uncertain && $0.remoteName == nil && $0.operationName == nil }.count
     }
 
     static func isDefinitiveRejection(_ status: Int) -> Bool {

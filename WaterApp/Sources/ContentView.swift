@@ -106,6 +106,47 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
             if health.account != nil {
+                HStack {
+                    Text("Drinks on Google").font(.subheadline.bold())
+                    Spacer()
+                    if health.hasReadPermission {
+                        Button("Refresh list") { Task { await health.refreshGoogleDrinks() } }
+                            .disabled(health.isRefreshingGoogle)
+                    } else {
+                        Button("Grant read access") { Task { await health.connect() } }
+                    }
+                }
+                Text(health.googleListStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !health.googleDrinks.isEmpty {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(health.googleDrinks) { drink in
+                                HStack {
+                                    Text(drink.at.formatted(date: .abbreviated, time: .shortened))
+                                    Spacer()
+                                    Text("\(drink.ml) ml")
+                                    Text(drink.confidence == .confirmed ? "Confirmed" : "Possible match")
+                                        .foregroundStyle(drink.confidence == .confirmed ? .green : .orange)
+                                }
+                                .font(.caption)
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 150)
+                    .privacySensitive()
+                }
+                if health.queuedCount > 0 || health.uncertainCount > 0 {
+                    Text("Local: \(health.queuedCount) queued, \(health.uncertainCount) need verification. Possible matches are not confirmed uploads; do not retry them blindly.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            if health.account != nil {
                 VStack(alignment: .leading, spacing: 4) {
                     Button("Export earlier timed drinks…") { confirmBackfill = true }
                     if health.needsReview {
@@ -182,6 +223,7 @@ struct ContentView: View {
         .onAppear {
             refresh()
             reminders.refreshPermission()
+            Task { await health.refreshGoogleDrinks() }
         }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
             if !animating { refresh() }

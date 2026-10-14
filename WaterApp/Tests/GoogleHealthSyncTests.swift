@@ -7,6 +7,15 @@ final class GoogleHealthSyncTests: XCTestCase {
         XCTAssertFalse(GoogleHealthAuth.scopeWasGranted("email https://www.googleapis.com/auth/userinfo.email openid"))
         XCTAssertTrue(GoogleHealthAuth.scopeWasGranted("openid email \(GoogleHealthAuth.healthScope)"))
         XCTAssertTrue(GoogleHealthAuth.scopeWasGranted(nil))
+        XCTAssertTrue(GoogleHealthAuth.scopeIsPresent(GoogleHealthAuth.readScope,
+            in: "openid \(GoogleHealthAuth.readScope) \(GoogleHealthAuth.healthScope)"))
+        XCTAssertFalse(GoogleHealthAuth.scopeIsPresent(GoogleHealthAuth.readScope,
+            in: "openid \(GoogleHealthAuth.healthScope)"))
+    }
+
+    func testOldCredentialsWithoutReadScopeStillDecode() throws {
+        let json = Data(#"{"accessToken":"test","refreshToken":"test","expiresAt":0,"subject":"test","email":"test@example.com"}"#.utf8)
+        XCTAssertNil(try JSONDecoder().decode(GoogleHealthAuth.Credentials.self, from: json).scopes)
     }
 
     func testTokenFormIncludesClientSecretAndEncodesSpecialCharacters() throws {
@@ -45,6 +54,36 @@ final class GoogleHealthSyncTests: XCTestCase {
         let params = try await waiting.value
         XCTAssertEqual(params["state"], "unit-state")
         XCTAssertEqual(params["code"], "unit-code")
+    }
+
+    func testGoogleListShowsOnlyMatchedWaterRecordsAndFlagsUnverifiedMatches() throws {
+        func point(_ id: String, at: String, ml: Any) -> [String: Any] {
+            ["name": "users/me/dataTypes/hydration-log/dataPoints/\(id)",
+             "hydrationLog": ["interval": ["startTime": at],
+                              "amountConsumed": ["milliliters": ml]]]
+        }
+        let first = "2026-10-01T12:00:00Z"
+        let second = "2026-10-01T13:00:00.000Z"
+        let page = try GoogleHealthRemote.page([
+            "dataPoints": [point("known-id", at: first, ml: 355),
+                           point("possible-id", at: second, ml: "355"),
+                           point("other-app-id", at: "2026-10-01T15:00:00Z", ml: 200)],
+            "nextPageToken": "next"])
+        XCTAssertEqual(page.records.count, 3)
+        XCTAssertEqual(page.nextPageToken, "next")
+        var confirmed = GoogleHealthSync.Entry(at: first, ml: 355)
+        confirmed.remoteName = "users/12345/dataTypes/hydration-log/dataPoints/known-id"
+        var uncertain = GoogleHealthSync.Entry(at: "2026-10-01T13:00:00Z", ml: 355)
+        uncertain.uncertain = true
+        let matches = GoogleHealthRemote.matchingWaterDrinks(page.records, entries: [confirmed, uncertain])
+        XCTAssertEqual(matches.count, 2)
+        XCTAssertEqual(matches[0].id, "users/me/dataTypes/hydration-log/dataPoints/possible-id")
+        XCTAssertEqual(matches[0].confidence, .possible)
+        XCTAssertEqual(matches[1].confidence, .confirmed)
+    }
+
+    func testUnparseableGoogleListIsNotReportedAsEmpty() {
+        XCTAssertThrowsError(try GoogleHealthRemote.page(["dataPoints": [["name": "unexpected"]]]))
     }
 
     func testHydrationPayloadUsesActualVolumeAndOneSecondUTCInterval() throws {
