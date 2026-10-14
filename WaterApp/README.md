@@ -24,7 +24,7 @@ Google Health API access is required: Google currently does **not** onboard new 
 GOOGLE_HEALTH_CLIENT_ID='your-desktop-client-id.apps.googleusercontent.com' ./WaterApp/install-local.sh
 ```
 
-Use the same variable with `./WaterApp/package.sh` when sharing a build. Without it, the local tracker still works, but Connect displays a configuration error. Each recipient must be authorized to use your Google Health project. The browser sign-in uses a PKCE-protected localhost callback; credentials live in the macOS Keychain. Water never bundles a client secret.
+Use the same variable with `./WaterApp/package.sh` when sharing a build. Without it, the local tracker still works, but Connect displays a configuration error. Each recipient must be authorized to use your Google Health project. The browser sign-in uses a PKCE-protected localhost callback. Google also requires the Desktop OAuth client's `client_secret` for its token endpoint: enter it in Water's **Desktop OAuth client secret** field, then click **Save & Connect**. Water stores it in macOS Keychain and uses it for code exchange and token refresh. It is never included in the source, build settings, app bundle, or water JSON. **Do not paste it in chat or commit it to Git.** Disconnect removes both OAuth tokens and the locally stored client secret.
 
 Click **Connect** in the menu-bar app to start exporting new timestamped drinks. Local JSON is authoritative: the app also picks up CLI edits at launch and every five minutes while running. **Sync now** checks immediately; pending Google operations are checked on later syncs. **Export earlier timed drinks…** opts in to backfilling recorded history, which might duplicate existing Google water logs. Untimed legacy totals are never exported. Removing or resetting an exported drink queues deletion from Google. **Disconnect** removes local credentials but deliberately does not delete Google data. No syncing takes place while the macOS app is quit.
 
@@ -43,7 +43,7 @@ If `XDG_STATE_HOME` is set, the files are under `$XDG_STATE_HOME/water-cli/` ins
 
 ## Share with another Mac
 
-Run `./WaterApp/package.sh` from the `sam-tools` directory. It builds a Release app for both Apple Silicon and Intel Macs, signs and verifies the whole bundle, and writes a ZIP under `WaterApp/dist/` with `READ-ME-FIRST.txt`. The ZIP contains no daily water data. Your colleague needs macOS 14 or newer.
+Run `./WaterApp/package.sh` from the `water-app` directory. It builds a Release app for both Apple Silicon and Intel Macs, signs and verifies the whole bundle, and writes a ZIP under `WaterApp/dist/` with `READ-ME-FIRST.txt`. The ZIP contains no daily water data. Your colleague needs macOS 14 or newer.
 
 **Signing limitation:** This machine has no Developer ID certificate, so the default archive is **ad-hoc signed and not notarized**. On the recipient's Mac, Gatekeeper may require **System Settings → Privacy & Security → Open Anyway** after an initial launch attempt. Only override the warning if the recipient trusts the sender. System notifications may not register with an ad-hoc build; the app's opt-in full-screen overlay works independently while it runs. For frictionless distribution, sign with a Developer ID identity and notarize the app; setting `WATER_CODESIGN_IDENTITY` when packaging signs with that identity, but does **not** notarize it.
 

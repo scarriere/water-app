@@ -10,7 +10,9 @@ Water for macOS 14 or newer (Apple Silicon and Intel)
    No personal tracking data is included in this archive.
 5. Google Health export is optional and requires an authorized Google Health
    project, an OAuth client ID embedded at build time, and your consent via
-   the Connect button. Only timestamped water drinks are uploaded.
+   the Connect button. Paste the matching Desktop OAuth client secret into
+   Water's secure field on your Mac; it is stored in macOS Keychain, not bundled
+   in this archive. Only timestamped water drinks are uploaded.
 
 This build is ad-hoc signed, not notarized by Apple. System notification
 permission may not register on another Mac. The optional Full-screen reminders

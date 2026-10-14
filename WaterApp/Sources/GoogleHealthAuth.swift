@@ -16,11 +16,15 @@ final class GoogleHealthAuth {
     }
 
     enum AuthError: LocalizedError {
-        case missingClientID, callback(String), missingHealthScope, tokenRejected(Int, String, String?)
+        case missingClientID, missingClientSecret, invalidClientSecret, keychain(OSStatus)
+        case callback(String), missingHealthScope, tokenRejected(Int, String, String?)
         case missingRefreshToken, invalidResponse, noCredentials
         var errorDescription: String? {
             switch self {
             case .missingClientID: return "Set GOOGLE_HEALTH_CLIENT_ID in the Water build configuration."
+            case .missingClientSecret: return "Enter the Desktop OAuth client secret in Water first."
+            case .invalidClientSecret: return "Enter a valid Desktop OAuth client secret."
+            case .keychain(let status): return "Could not save the OAuth client secret in Keychain (\(status))."
             case .callback(let message): return "Google sign-in: \(message)"
             case .missingHealthScope:
                 return "Google did not grant water-write permission. Select the Google Health nutrition permission on the consent screen; if it is not offered, check Google Health API access for this Cloud project."
@@ -35,8 +39,46 @@ final class GoogleHealthAuth {
 
     static let healthScope = "https://www.googleapis.com/auth/googlehealth.nutrition.writeonly"
     private static let keychainService = "com.samtools.water.google-health"
+    private static let secretKeychainService = "com.samtools.water.google-health-client-secret"
     private let clientID: String
     private(set) var credentials: Credentials?
+
+    var hasClientSecret: Bool { Self.readClientSecret(for: clientID) != nil }
+
+    func saveClientSecret(_ value: String) throws {
+        let secret = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clientID.isEmpty, !secret.isEmpty, secret.utf8.count <= 1024,
+              secret.unicodeScalars.allSatisfy({ $0.value >= 33 && $0.value <= 126 }) else {
+            throw AuthError.invalidClientSecret
+        }
+        let query = Self.clientSecretQuery(for: clientID)
+        let data = Data(secret.utf8)
+        let update = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if update == errSecItemNotFound {
+            var insert = query
+            insert[kSecValueData as String] = data
+            let status = SecItemAdd(insert as CFDictionary, nil)
+            guard status == errSecSuccess else { throw AuthError.keychain(status) }
+        } else if update != errSecSuccess {
+            throw AuthError.keychain(update)
+        }
+    }
+
+    private static func clientSecretQuery(for clientID: String) -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: secretKeychainService,
+         kSecAttrAccount as String: clientID]
+    }
+
+    private static func readClientSecret(for clientID: String) -> String? {
+        var query = clientSecretQuery(for: clientID)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
 
     init() {
         clientID = Bundle.main.object(forInfoDictionaryKey: "GoogleHealthClientID") as? String ?? ""
@@ -48,10 +90,12 @@ final class GoogleHealthAuth {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
                                     kSecAttrService as String: Self.keychainService]
         SecItemDelete(query as CFDictionary)
+        SecItemDelete(Self.clientSecretQuery(for: clientID) as CFDictionary)
     }
 
     func connect() async throws {
         guard !clientID.isEmpty else { throw AuthError.missingClientID }
+        guard hasClientSecret else { throw AuthError.missingClientSecret }
         let state = UUID().uuidString
         let verifier = (UUID().uuidString + UUID().uuidString).replacingOccurrences(of: "-", with: "")
         let challenge = Data(SHA256.hash(data: Data(verifier.utf8))).base64URLEncoded()
@@ -127,13 +171,32 @@ final class GoogleHealthAuth {
         return raw.unicodeScalars.allSatisfy(allowed.contains) ? raw : nil
     }
 
+    static func tokenForm(_ form: [String: String], clientSecret: String) -> [String: String] {
+        var form = form
+        form["client_secret"] = clientSecret
+        return form
+    }
+
+    static func formEncodedBody(_ form: [String: String]) -> Data? {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
+        let fields = form.sorted { $0.key < $1.key }.map { key, value -> String? in
+            guard let name = key.addingPercentEncoding(withAllowedCharacters: allowed),
+                  let content = value.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
+            return "\(name)=\(content)"
+        }
+        guard fields.allSatisfy({ $0 != nil }) else { return nil }
+        return Data(fields.compactMap { $0 }.joined(separator: "&").utf8)
+    }
+
     private func tokenRequest(_ form: [String: String]) async throws -> [String: Any] {
+        guard let secret = Self.readClientSecret(for: clientID) else { throw AuthError.missingClientSecret }
         var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var components = URLComponents()
-        components.queryItems = form.map { URLQueryItem(name: $0.key, value: $0.value) }
-        request.httpBody = components.percentEncodedQuery?.data(using: .utf8)
+        guard let body = Self.formEncodedBody(Self.tokenForm(form, clientSecret: secret)) else {
+            throw AuthError.invalidResponse
+        }
+        request.httpBody = body
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw AuthError.invalidResponse }
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]

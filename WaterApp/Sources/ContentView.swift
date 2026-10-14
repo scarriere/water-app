@@ -10,6 +10,8 @@ struct ContentView: View {
     @State private var animating = false
     @State private var confirmBackfill = false
     @State private var confirmRetry = false
+    @State private var changingClientSecret = false
+    @State private var clientSecret = ""
 
     var body: some View {
         VStack(spacing: 10) {
@@ -53,13 +55,47 @@ struct ContentView: View {
                 Text("Google Health").font(.headline)
                 Spacer()
                 if health.account == nil {
-                    Button("Connect") { Task { await health.connect() } }
+                    if health.hasClientSecret && !changingClientSecret {
+                        Button("Connect") { Task { await health.connect() } }
+                    }
                 } else {
                     Button("Sync now") { Task { await health.sync() } }
                         .disabled(health.syncing)
                     Button("Disconnect") { health.disconnect() }
                         .disabled(health.syncing)
                 }
+            }
+            if !health.hasClientSecret || changingClientSecret {
+                SecureField("Desktop OAuth client secret", text: $clientSecret)
+                    .textFieldStyle(.roundedBorder)
+                    .privacySensitive()
+                HStack {
+                    Text("Paste the Desktop client secret from Google Cloud. Stored in macOS Keychain, not in this app build.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if changingClientSecret && health.hasClientSecret {
+                        Button("Cancel") {
+                            clientSecret = ""
+                            changingClientSecret = false
+                        }
+                    }
+                    Button(health.account == nil ? "Save & Connect" : "Save secret") {
+                        let value = clientSecret
+                        clientSecret = ""
+                        if health.saveClientSecret(value) {
+                            changingClientSecret = false
+                            Task {
+                                if health.account == nil { await health.connect() }
+                                else { await health.sync() }
+                            }
+                        }
+                    }
+                    .disabled(clientSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            } else if health.account == nil {
+                Button("Change client secret…") { changingClientSecret = true }
+                    .font(.caption)
             }
             if let account = health.account {
                 Text("Connected: \(account)").font(.caption).foregroundStyle(.secondary)

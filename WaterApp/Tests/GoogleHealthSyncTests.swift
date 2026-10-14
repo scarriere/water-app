@@ -9,6 +9,20 @@ final class GoogleHealthSyncTests: XCTestCase {
         XCTAssertTrue(GoogleHealthAuth.scopeWasGranted(nil))
     }
 
+    func testTokenFormIncludesClientSecretAndEncodesSpecialCharacters() throws {
+        let form = GoogleHealthAuth.tokenForm(
+            ["grant_type": "authorization_code", "code": "4/test+code", "code_verifier": "unit"],
+            clientSecret: "fake+secret")
+        XCTAssertEqual(form["client_secret"], "fake+secret")
+        let body = try XCTUnwrap(GoogleHealthAuth.formEncodedBody(form))
+        let encoded = try XCTUnwrap(String(data: body, encoding: .utf8))
+        XCTAssertTrue(encoded.contains("client_secret=fake%2Bsecret"))
+        XCTAssertTrue(encoded.contains("code=4%2Ftest%2Bcode"))
+        XCTAssertTrue(encoded.contains("code_verifier=unit"))
+        let refresh = GoogleHealthAuth.tokenForm(["grant_type": "refresh_token"], clientSecret: "fake+secret")
+        XCTAssertEqual(refresh["client_secret"], form["client_secret"])
+    }
+
     func testTokenErrorDetailsNeverExposeCodesOrTokens() {
         XCTAssertEqual(GoogleHealthAuth.safeGoogleErrorDetail("Missing required parameter: client_secret."),
                        "Missing required parameter: client_secret.")

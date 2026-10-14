@@ -20,6 +20,7 @@ final class GoogleHealthSync: ObservableObject {
     }
 
     @Published private(set) var account: String?
+    @Published private(set) var hasClientSecret = false
     @Published private(set) var status = "Not connected"
     @Published private(set) var syncing = false
     @Published private(set) var needsReview = false
@@ -32,6 +33,7 @@ final class GoogleHealthSync: ObservableObject {
     init(repository: WaterRepository = WaterRepository()) {
         self.repository = repository
         account = auth.credentials?.email
+        hasClientSecret = auth.hasClientSecret
         if account != nil { status = "Ready to sync" }
     }
 
@@ -41,6 +43,20 @@ final class GoogleHealthSync: ObservableObject {
             Task { @MainActor [weak self] in await self?.sync() }
         }
         Task { await sync() }
+    }
+
+    @discardableResult
+    func saveClientSecret(_ value: String) -> Bool {
+        guard !running else { return false }
+        do {
+            try auth.saveClientSecret(value)
+            hasClientSecret = true
+            status = "OAuth client secret saved in Keychain"
+            return true
+        } catch {
+            status = error.localizedDescription
+            return false
+        }
     }
 
     func connect() async {
@@ -95,7 +111,8 @@ final class GoogleHealthSync: ObservableObject {
         guard !running else { return }
         auth.disconnect()
         account = nil
-        status = "Disconnected (Google records were not deleted)"
+        hasClientSecret = false
+        status = "Disconnected (local credentials removed; Google records were not deleted)"
     }
 
     func sync() async {
