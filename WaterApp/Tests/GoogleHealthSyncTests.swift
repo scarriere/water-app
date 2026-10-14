@@ -3,6 +3,12 @@ import XCTest
 
 @MainActor
 final class GoogleHealthSyncTests: XCTestCase {
+    func testOAuthRequiresHealthWriteScopeWhenGoogleReturnsGrantedScopes() {
+        XCTAssertFalse(GoogleHealthAuth.scopeWasGranted("email https://www.googleapis.com/auth/userinfo.email openid"))
+        XCTAssertTrue(GoogleHealthAuth.scopeWasGranted("openid email \(GoogleHealthAuth.healthScope)"))
+        XCTAssertTrue(GoogleHealthAuth.scopeWasGranted(nil))
+    }
+
     func testOAuthLoopbackAcceptsOneCallbackAndRejectsOtherPaths() async throws {
         let server = try LoopbackCallback()
         defer { server.cancel() }

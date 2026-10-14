@@ -16,11 +16,16 @@ final class GoogleHealthAuth {
     }
 
     enum AuthError: LocalizedError {
-        case missingClientID, callback(String), missingRefreshToken, invalidResponse, noCredentials
+        case missingClientID, callback(String), missingHealthScope, tokenRejected(Int, String)
+        case missingRefreshToken, invalidResponse, noCredentials
         var errorDescription: String? {
             switch self {
             case .missingClientID: return "Set GOOGLE_HEALTH_CLIENT_ID in the Water build configuration."
             case .callback(let message): return "Google sign-in: \(message)"
+            case .missingHealthScope:
+                return "Google did not grant water-write permission. Select the Google Health nutrition permission on the consent screen; if it is not offered, check Google Health API access for this Cloud project."
+            case .tokenRejected(let status, let code):
+                return "Google token exchange failed (HTTP \(status), \(code)). Check that the OAuth client is a Desktop app."
             case .missingRefreshToken: return "Google did not grant offline access. Reconnect and allow access."
             case .invalidResponse: return "Unexpected Google OAuth response."
             case .noCredentials: return "Connect Google Health first."
@@ -28,6 +33,7 @@ final class GoogleHealthAuth {
         }
     }
 
+    static let healthScope = "https://www.googleapis.com/auth/googlehealth.nutrition.writeonly"
     private static let keychainService = "com.samtools.water.google-health"
     private let clientID: String
     private(set) var credentials: Credentials?
@@ -56,7 +62,7 @@ final class GoogleHealthAuth {
         parts.queryItems = [
             .init(name: "client_id", value: clientID), .init(name: "redirect_uri", value: redirect),
             .init(name: "response_type", value: "code"), .init(name: "scope", value:
-                "openid email https://www.googleapis.com/auth/googlehealth.nutrition.writeonly"),
+                "openid email \(Self.healthScope)"),
             .init(name: "access_type", value: "offline"), .init(name: "prompt", value: "consent"),
             .init(name: "state", value: state), .init(name: "code_challenge", value: challenge),
             .init(name: "code_challenge_method", value: "S256")
@@ -70,8 +76,11 @@ final class GoogleHealthAuth {
             "grant_type": "authorization_code", "code": code, "redirect_uri": redirect,
             "code_verifier": verifier, "client_id": clientID
         ])
-        guard let refresh = response["refresh_token"] as? String,
-              let access = response["access_token"] as? String,
+        guard Self.scopeWasGranted(params["scope"]), Self.scopeWasGranted(response["scope"] as? String) else {
+            throw AuthError.missingHealthScope
+        }
+        guard let refresh = response["refresh_token"] as? String else { throw AuthError.missingRefreshToken }
+        guard let access = response["access_token"] as? String,
               let token = response["id_token"] as? String,
               let claims = Self.claims(in: token), let subject = claims["sub"] as? String,
               claims["aud"] as? String == clientID,
@@ -99,6 +108,11 @@ final class GoogleHealthAuth {
         return access
     }
 
+    static func scopeWasGranted(_ scopes: String?) -> Bool {
+        guard let scopes else { return true } // Some providers omit the callback scope field.
+        return scopes.split(separator: " ").contains(Substring(healthScope))
+    }
+
     private func tokenRequest(_ form: [String: String]) async throws -> [String: Any] {
         var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
         request.httpMethod = "POST"
@@ -107,10 +121,17 @@ final class GoogleHealthAuth {
         components.queryItems = form.map { URLQueryItem(name: $0.key, value: $0.value) }
         request.httpBody = components.percentEncodedQuery?.data(using: .utf8)
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw AuthError.callback("Token request was rejected; reconnect or check API access.")
+        guard let http = response as? HTTPURLResponse else { throw AuthError.invalidResponse }
+        let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        guard (200..<300).contains(http.statusCode) else {
+            // Never show a token, authorization code, or untrusted error_description.
+            let code = (json?["error"] as? String) ?? "unknown_error"
+            let safe = code.unicodeScalars.allSatisfy {
+                CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-").contains($0)
+            } && code.count <= 80 ? code : "unknown_error"
+            throw AuthError.tokenRejected(http.statusCode, safe)
         }
+        guard let json else { throw AuthError.invalidResponse }
         return json
     }
 
